@@ -19,7 +19,7 @@ public class MemoryRestaurantRepositoryImpl implements RestaurantRepository {
 
     @Override
     public Optional<Restaurant> getById(String id) {
-        return Optional.of(db.get(id));
+        return Optional.ofNullable(db.get(id));
     }
 
     @Override

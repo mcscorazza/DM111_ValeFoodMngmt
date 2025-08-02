@@ -19,7 +19,7 @@ public class MemoryUserRepositoryImpl implements UserRepository{
 
     @Override
     public Optional<User> getById(String id) {
-        return Optional.of(db.get(id));
+        return Optional.ofNullable(db.get(id));
     }
 
     @Override

@@ -6,11 +6,11 @@ import br.inatel.pos.dm11.vfu.api.restaurant.ProductRequest;
 import br.inatel.pos.dm11.vfu.api.restaurant.ProductResponse;
 import br.inatel.pos.dm11.vfu.api.restaurant.RestaurantRequest;
 import br.inatel.pos.dm11.vfu.api.restaurant.RestaurantResponse;
-import br.inatel.pos.dm11.vfu.api.user.UserRequest;
-import br.inatel.pos.dm11.vfu.api.user.UserResponse;
 import br.inatel.pos.dm11.vfu.persistance.restaurant.Product;
 import br.inatel.pos.dm11.vfu.persistance.restaurant.Restaurant;
 import br.inatel.pos.dm11.vfu.persistance.restaurant.RestaurantRepository;
+import br.inatel.pos.dm11.vfu.persistance.user.User;
+import br.inatel.pos.dm11.vfu.persistance.user.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -22,33 +22,75 @@ import java.util.UUID;
 public class RestaurantService {
 
     private static final Logger log = LoggerFactory.getLogger(RestaurantService.class);
-    private final RestaurantRepository repository;
+    private final RestaurantRepository restaurantRepository;
+    private final UserRepository userRepository;
 
-    public RestaurantService(RestaurantRepository repository) {
-        this.repository = repository;
+    public RestaurantService(RestaurantRepository repository, RestaurantRepository restaurantRepository, UserRepository userRepository) {
+        this.restaurantRepository = restaurantRepository;
+        this.userRepository = userRepository;
     }
+
+
     //#############################################
     //##                PUBLIC                   ##
     //#############################################
     public List<RestaurantResponse> searchRestaurants() {
-        var restaurants = repository.getAll();
+        var restaurants = restaurantRepository.getAll();
         return restaurants.stream().map(this::buildRestaurantResponse).toList();
     }
 
-    public RestaurantResponse createRestaurant(RestaurantRequest request) throws ApiException {
-        var restaurant = buildRestaurant(request);
-        repository.save(restaurant);
+    public RestaurantResponse searchRestaurant(String id) throws ApiException {
+        return restaurantRepository.getById(id).map(this::buildRestaurantResponse)
+                .orElseThrow(()->{
+                    log.warn("Restaurant was not found. Id: {}", id);
+                    return new ApiException((AppErrorCode.RESTAURANT_NOT_FOUND));
+                });
+    }
+
+    public RestaurantResponse createRestaurant(RestaurantRequest req) throws ApiException {
+
+        validateRestaurantUpdate(req);
+
+        var restaurant = buildRestaurant(req);
+        restaurantRepository.save(restaurant);
         log.info("Restaurant was successfully created. Id: {}", restaurant.id());
         return buildRestaurantResponse(restaurant);
+    }
+
+    public RestaurantResponse updateRestaurant(RestaurantRequest req, String id) throws ApiException {
+        // check restaurant by id exist
+        var restaurantOpt = restaurantRepository.getById(id);
+
+        if (restaurantOpt.isEmpty()){
+            log.warn("Restaurant was not found! Id: {}", id);
+            throw  new ApiException(AppErrorCode.RESTAURANT_NOT_FOUND);
+        } else {
+
+            validateRestaurantUpdate(req);
+
+            var UpdRestaurant = buildRestaurant(req, id);
+            restaurantRepository.save(UpdRestaurant);
+            log.info("Restaurant was successfully Updated! Id: {}", id);
+            return buildRestaurantResponse(UpdRestaurant);
+        }
+    }
+
+    public void removeRestaurant(String id) {
+        restaurantRepository.delete(id);
+        log.info("Restaurant was successfully deleted! Id: {}", id);
     }
 
     //#############################################
     //##                PRIVATE                  ##
     //#############################################
     private Restaurant buildRestaurant(RestaurantRequest req) {
+        var restaurantId = UUID.randomUUID().toString();
+        return buildRestaurant(req, restaurantId);
+    }
+
+    private Restaurant buildRestaurant(RestaurantRequest req, String restaurantId) {
         var products = req.products().stream()
                 .map(this::buildProduct).toList();
-        var restaurantId = UUID.randomUUID().toString();
         return new Restaurant(restaurantId,
                 req.name(),
                 req.address(),
@@ -90,5 +132,17 @@ public class RestaurantService {
                 product.price()
         );
     }
-
+    private void validateRestaurantUpdate(RestaurantRequest req) throws ApiException {
+        var userOpt = userRepository.getById(req.userId());
+        if (userOpt.isEmpty()){
+            log.warn("User was not found! Id: {}", req.userId());
+            throw  new ApiException(AppErrorCode.USER_NOT_FOUND);
+        } else {
+            var user = userOpt.get();
+            if(User.UserType.RESTAURANT.equals(user.type())) {
+                log.info("User provided is not valid for this operation. User Id: {}", req.userId());
+                throw new ApiException(AppErrorCode.INVALID_USER_TYPE);
+            }
+        }
+    }
 }

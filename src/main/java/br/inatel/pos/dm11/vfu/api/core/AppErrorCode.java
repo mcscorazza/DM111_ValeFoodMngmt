@@ -3,7 +3,9 @@ package br.inatel.pos.dm11.vfu.api.core;
 public enum AppErrorCode {
 
     CONFLICTED_USER_EMAIL("user.email.conflicted", "Provided email is already in use", 409),
-    USER_NOT_FOUND("user.not.found", "User was not found!", 404);
+    RESTAURANT_NOT_FOUND("restaurant.not.found", "Restaurant was not found!", 404),
+    USER_NOT_FOUND("user.not.found", "User was not found!", 404),
+    INVALID_USER_TYPE("invalid.user.type", "Provided user is not supported for the current operation.", 403);
 
     private String code;
     private String message;

@@ -36,6 +36,17 @@ public class RestaurantController {
                 .status(HttpStatus.OK)
                 .body(response);
     }
+
+    @GetMapping(value="/{restaurantId}")
+    public ResponseEntity<RestaurantResponse> getRestaurantById(
+            @PathVariable("restaurantId") String id) throws ApiException {
+        log.debug("Received request to list a restaurant by Id: {}", id);
+        var response = service.searchRestaurant(id);
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(response);
+    }
+
     @PostMapping
     public ResponseEntity<RestaurantResponse> postRestaurant(
             @RequestBody RestaurantRequest request,
@@ -48,5 +59,29 @@ public class RestaurantController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
+    }
+
+    @PutMapping(value="/{restaurantId}")
+    public ResponseEntity<RestaurantResponse> putUser(
+            @RequestBody RestaurantRequest request,
+            @PathVariable("restaurantId") String id,
+            BindingResult bindingResult) throws ApiException {
+        log.debug("Received request to update a restaurant");
+
+        //validateUserRequest(request, bindingResult);
+
+        var response = service.updateRestaurant(request, id);
+
+        return ResponseEntity
+                .status(HttpStatus.OK)
+                .body(response);
+    }
+
+    @DeleteMapping(value="/{restaurantId}")
+    public ResponseEntity<List<UserResponse>> deleteUser(@PathVariable("restaurantId") String id) {
+        log.debug("Received request to delete a restaurant. Id: {}", id);
+        service.removeRestaurant(id);
+        return ResponseEntity
+                .status(HttpStatus.NO_CONTENT).build();
     }
 }

@@ -29,7 +29,6 @@ public class UserService {
     }
 
     public UserResponse createUser(UserRequest request) throws ApiException {
-        //Validate user uniqueness by email
         var userOpt = repository.getByEmail(request.email());
         if (userOpt.isPresent()){
             log.warn("Provided email already in use.");
@@ -57,7 +56,6 @@ public class UserService {
     public UserResponse updateUser(UserRequest request, String id) throws ApiException {
         // check user by id exist
         var userOpt = repository.getById(id);
-
         if (userOpt.isEmpty()){
             log.warn("User was not found! Id: {}", id);
             throw  new ApiException(AppErrorCode.USER_NOT_FOUND);
@@ -74,6 +72,7 @@ public class UserService {
 
         var user = buildUser(request, id);
         repository.save(user);
+        log.info("User was successfully Updated! Id: {}", id);
 
         return buildUserResponse(user);
     }
