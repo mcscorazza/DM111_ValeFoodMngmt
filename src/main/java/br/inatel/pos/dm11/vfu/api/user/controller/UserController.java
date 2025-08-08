@@ -26,7 +26,7 @@ public class UserController {
         this.service = service;
     }
     @GetMapping
-    public ResponseEntity<List<UserResponse>> getAllUsers() {
+    public ResponseEntity<List<UserResponse>> getAllUsers() throws ApiException {
         log.debug("Received request to list all users.");
         var response = service.searchUsers();
         return ResponseEntity
@@ -74,7 +74,7 @@ public class UserController {
     }
 
     @DeleteMapping(value="/{userId}")
-    public ResponseEntity<List<UserResponse>> deleteUser(@PathVariable("userId") String id) {
+    public ResponseEntity<List<UserResponse>> deleteUser(@PathVariable("userId") String id) throws ApiException {
         log.debug("Received request to delete an user. Id: {}", id);
         service.removeUser(id);
         return ResponseEntity

@@ -1,14 +1,10 @@
 package br.inatel.pos.dm11.vfu.persistance.restaurant;
 
-import br.inatel.pos.dm11.vfu.persistance.user.User;
+import br.inatel.pos.dm11.vfu.persistance.ValeFoodRepository;
 
-import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
 
-public interface RestaurantRepository {
-    List<Restaurant> getAll();
-    Optional<Restaurant> getById(String id);
-    Optional<Restaurant> getByUserId(String userId);
-    Restaurant save(Restaurant restaurant);
-    void delete(String id);
+public interface RestaurantRepository extends ValeFoodRepository<Restaurant> {
+    Optional<Restaurant> getByUserId(String userId) throws ExecutionException, InterruptedException;
 }

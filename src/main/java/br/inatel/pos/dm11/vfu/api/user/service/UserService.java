@@ -1,5 +1,6 @@
 package br.inatel.pos.dm11.vfu.api.user.service;
 
+import br.inatel.pos.dm11.vfu.api.PasswordEncryptor;
 import br.inatel.pos.dm11.vfu.api.core.ApiException;
 import br.inatel.pos.dm11.vfu.api.core.AppErrorCode;
 import br.inatel.pos.dm11.vfu.api.user.UserRequest;
@@ -15,62 +16,65 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 
 @Service
 public class UserService {
 
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
     private final UserRepository repository;
+    private final PasswordEncryptor encryptor;
 
-    public UserService(UserRepository repository)
+    public UserService(UserRepository repository, PasswordEncryptor encryptor)
     {
         this.repository = repository;
+        this.encryptor = encryptor;
     }
 
-    public UserResponse createUser(UserRequest request) throws ApiException {
-        var userOpt = repository.getByEmail(request.email());
-        if (userOpt.isPresent()){
-            log.warn("Provided email already in use.");
-            throw  new ApiException(AppErrorCode.CONFLICTED_USER_EMAIL);
-        }
-        var user = buildUser(request);
-        repository.save(user);
-        log.info("User was successfully created. Id: {}", user.id());
-        return buildUserResponse(user);
-    }
-
-    public List<UserResponse> searchUsers() {
-        var users = repository.getAll();
-        return users.stream().map(this::buildUserResponse).toList();
+    //#############################################
+    //##                PUBLIC                   ##
+    //#############################################
+    public List<UserResponse> searchUsers() throws ApiException {
+        return retrieveUsers()
+                .stream()
+                .map(this::buildUserResponse)
+                .toList();
     }
 
     public UserResponse searchUser(String id) throws ApiException {
-        return repository.getById(id).map(this::buildUserResponse)
+        return  retrieveUserById(id)
+                .map(this::buildUserResponse)
                 .orElseThrow(()->{
                     log.warn("User was not found. Id: {}", id);
                     return new ApiException((AppErrorCode.USER_NOT_FOUND));
                 });
     }
 
-    public UserResponse updateUser(UserRequest request, String id) throws ApiException {
+    public UserResponse createUser(UserRequest req) throws ApiException {
+        validateUser(req);
+        var user = buildUser(req);
+        repository.save(user);
+        log.info("User was successfully created. Id: {}", user.id());
+        return buildUserResponse(user);
+    }
+
+
+
+    public UserResponse updateUser(UserRequest req, String id) throws ApiException {
         // check user by id exist
-        var userOpt = repository.getById(id);
+        var userOpt = retrieveUserById(id);
         if (userOpt.isEmpty()){
             log.warn("User was not found! Id: {}", id);
             throw  new ApiException(AppErrorCode.USER_NOT_FOUND);
         } else {
             var user = userOpt.get();
-            if(request.email() != null && !user.email().equals(request.email())) {
-                var userEmailOpt = repository.getByEmail(request.email());
-                if (userEmailOpt.isPresent()) {
-                    log.warn("User provided already in use!");
-                    throw new ApiException(AppErrorCode.CONFLICTED_USER_EMAIL);
-                };
+            if(req.email() != null && !user.email().equals(req.email())) {
+                validateUser(req);
             }
         }
-
-        var user = buildUser(request, id);
+        var user = buildUser(req, id);
         repository.save(user);
         log.info("User was successfully Updated! Id: {}", id);
 
@@ -78,41 +82,65 @@ public class UserService {
     }
 
 
-    public void removeUser(String id) {
-        repository.delete(id);
-        log.info("User was successfully deleted! Id: {}", id);
+    public void removeUser(String id) throws ApiException {
+        try {
+            repository.delete(id);
+            log.info("User was successfully deleted! Id: {}", id);
+        } catch (ExecutionException | InterruptedException e) {
+            log.error("Failed to delete an users from DB by Id: {}.", id, e);
+            throw new ApiException(AppErrorCode.INTERNAL_DB_COMMUNICATION_ERROR);
+        }
     }
 
+    //#############################################
+    //##                PRIVATE                  ##
+    //#############################################
     private UserResponse buildUserResponse(User user) {
         return new UserResponse(user.id(), user.name(), user.email(), user.type().name());
     }
 
     private User buildUser(UserRequest req) {
-        var encryptedPwd = encrypt(req.password());
+        var encryptedPwd = encryptor.encrypt(req.password());
         var userId = UUID.randomUUID().toString();
 
         return new User(userId, req.name(), req.email(), encryptedPwd, User.UserType.valueOf(req.type()));
     }
 
     private User buildUser(UserRequest req, String id) {
-        var encryptedPwd = encrypt(req.password());
+        var encryptedPwd = encryptor.encrypt(req.password());
         return new User(id, req.name(), req.email(), encryptedPwd, User.UserType.valueOf(req.type()));
     }
 
-    private String encrypt(String text) {
-        MessageDigest crypt = null;
-        try {
-            crypt = MessageDigest.getInstance("SHA-1");
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
+    private void validateUser(UserRequest req) throws ApiException {
+        var userOpt = retrieveUserByEmail(req.email());
+        if (userOpt.isPresent()) {
+            log.warn("Provided email already in use.");
+            throw new ApiException(AppErrorCode.CONFLICTED_USER_EMAIL);
         }
-        crypt.reset();
-        crypt.update(text.getBytes(StandardCharsets.UTF_8));
-
-        return new BigInteger(1,crypt.digest()).toString();
     }
-
-
-
-
+    
+    private List<User> retrieveUsers() throws ApiException {
+        try {
+            return repository.getAll();
+        } catch (ExecutionException | InterruptedException e) {
+            log.error("Failed to read all users from DB.", e);
+            throw new ApiException(AppErrorCode.INTERNAL_DB_COMMUNICATION_ERROR);
+        }
+    }
+    private Optional<User> retrieveUserById(String id) throws ApiException {
+        try {
+            return repository.getById(id);
+        } catch (ExecutionException | InterruptedException e) {
+            log.error("Failed to read an users from DB by id: {}.", id, e);
+            throw new ApiException(AppErrorCode.INTERNAL_DB_COMMUNICATION_ERROR);
+        }
+    }
+    private Optional<User> retrieveUserByEmail(String email) throws ApiException {
+        try {
+            return repository.getByEmail(email);
+        } catch (ExecutionException | InterruptedException e) {
+            log.error("Failed to read an users from DB by email.", e);
+            throw new ApiException(AppErrorCode.INTERNAL_DB_COMMUNICATION_ERROR);
+        }
+    }
 }

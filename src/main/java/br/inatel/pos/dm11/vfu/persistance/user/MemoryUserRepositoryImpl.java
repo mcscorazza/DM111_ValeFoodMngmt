@@ -1,5 +1,6 @@
 package br.inatel.pos.dm11.vfu.persistance.user;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -7,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+@Profile("test")
 @Component
 public class MemoryUserRepositoryImpl implements UserRepository{
 

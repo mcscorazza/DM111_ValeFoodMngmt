@@ -31,7 +31,7 @@ public class RestaurantController {
     }
 
     @GetMapping
-    public ResponseEntity<List<RestaurantResponse>> getAllRestaurant() {
+    public ResponseEntity<List<RestaurantResponse>> getAllRestaurant() throws ApiException {
         log.debug("Received request to list all restaurants.");
         var response = service.searchRestaurants();
         return ResponseEntity
@@ -80,7 +80,7 @@ public class RestaurantController {
     }
 
     @DeleteMapping(value="/{restaurantId}")
-    public ResponseEntity<List<UserResponse>> deleteUser(@PathVariable("restaurantId") String id) {
+    public ResponseEntity<List<UserResponse>> deleteUser(@PathVariable("restaurantId") String id) throws ApiException {
         log.debug("Received request to delete a restaurant. Id: {}", id);
         service.removeRestaurant(id);
         return ResponseEntity

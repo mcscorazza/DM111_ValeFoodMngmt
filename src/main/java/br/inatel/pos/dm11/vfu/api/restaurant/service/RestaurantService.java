@@ -16,7 +16,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 
 @Service
 public class RestaurantService {
@@ -25,7 +27,7 @@ public class RestaurantService {
     private final RestaurantRepository restaurantRepository;
     private final UserRepository userRepository;
 
-    public RestaurantService(RestaurantRepository repository, RestaurantRepository restaurantRepository, UserRepository userRepository) {
+    public RestaurantService(RestaurantRepository restaurantRepository, UserRepository userRepository) {
         this.restaurantRepository = restaurantRepository;
         this.userRepository = userRepository;
     }
@@ -34,50 +36,57 @@ public class RestaurantService {
     //#############################################
     //##                PUBLIC                   ##
     //#############################################
-    public List<RestaurantResponse> searchRestaurants() {
-        var restaurants = restaurantRepository.getAll();
-        return restaurants.stream().map(this::buildRestaurantResponse).toList();
-    }
 
+    // #### READ ####
+    public List<RestaurantResponse> searchRestaurants() throws ApiException {
+        return retrieveRestaurants()
+                .stream()
+                .map(this::buildRestaurantResponse)
+                .toList();
+    }
+    // #### READ BY ID ####
     public RestaurantResponse searchRestaurant(String id) throws ApiException {
-        return restaurantRepository.getById(id).map(this::buildRestaurantResponse)
+        return retrieveRestaurantById(id).map(this::buildRestaurantResponse)
                 .orElseThrow(()->{
                     log.warn("Restaurant was not found. Id: {}", id);
                     return new ApiException((AppErrorCode.RESTAURANT_NOT_FOUND));
                 });
     }
-
+    // #### CREATE ####
     public RestaurantResponse createRestaurant(RestaurantRequest req) throws ApiException {
-
         validateRestaurantUpdate(req);
-
         var restaurant = buildRestaurant(req);
         restaurantRepository.save(restaurant);
         log.info("Restaurant was successfully created. Id: {}", restaurant.id());
         return buildRestaurantResponse(restaurant);
     }
-
+    // #### UPDATE ####
     public RestaurantResponse updateRestaurant(RestaurantRequest req, String id) throws ApiException {
-        // check restaurant by id exist
-        var restaurantOpt = restaurantRepository.getById(id);
-
+        var restaurantOpt = retrieveRestaurantById(id);
         if (restaurantOpt.isEmpty()){
             log.warn("Restaurant was not found! Id: {}", id);
             throw  new ApiException(AppErrorCode.RESTAURANT_NOT_FOUND);
         } else {
-
             validateRestaurantUpdate(req);
-
             var UpdRestaurant = buildRestaurant(req, id);
             restaurantRepository.save(UpdRestaurant);
             log.info("Restaurant was successfully Updated! Id: {}", id);
             return buildRestaurantResponse(UpdRestaurant);
         }
     }
-
-    public void removeRestaurant(String id) {
-        restaurantRepository.delete(id);
-        log.info("Restaurant was successfully deleted! Id: {}", id);
+    // #### DELETE ####
+    public void removeRestaurant(String id) throws ApiException {
+        var restaurantOpt = retrieveRestaurantById(id);
+        if(restaurantOpt.isPresent()) {
+            try {
+                restaurantRepository.delete(id);
+            } catch (ExecutionException | InterruptedException e) {
+                log.error("Failed to delete a restaurant from DB.", e);
+                throw new ApiException(AppErrorCode.INTERNAL_DB_COMMUNICATION_ERROR);
+            }
+        } else {
+            log.info("The provided restaurant if was nto fount. Id: {}", id);
+        }
     }
 
     //#############################################
@@ -133,16 +142,45 @@ public class RestaurantService {
         );
     }
     private void validateRestaurantUpdate(RestaurantRequest req) throws ApiException {
-        var userOpt = userRepository.getById(req.userId());
+        var userOpt = retrieveUserById(req.userId());
         if (userOpt.isEmpty()){
             log.warn("User was not found! Id: {}", req.userId());
             throw  new ApiException(AppErrorCode.USER_NOT_FOUND);
         } else {
             var user = userOpt.get();
-            if(User.UserType.RESTAURANT.equals(user.type())) {
+            if(!User.UserType.RESTAURANT.equals(user.type())) {
                 log.info("User provided is not valid for this operation. User Id: {}", req.userId());
                 throw new ApiException(AppErrorCode.INVALID_USER_TYPE);
             }
         }
     }
+
+    private List<Restaurant> retrieveRestaurants() throws ApiException {
+        try {
+            return restaurantRepository.getAll();
+        } catch (ExecutionException | InterruptedException e) {
+            log.error("Failed to read all restaurants from DB.", e);
+            throw new ApiException(AppErrorCode.INTERNAL_DB_COMMUNICATION_ERROR);
+        }
+    }
+
+    private Optional<Restaurant> retrieveRestaurantById(String id) throws ApiException {
+        try {
+            return restaurantRepository.getById(id);
+        } catch (ExecutionException | InterruptedException e) {
+            log.error("Failed to read a restaurant from DB by id: {}.", id, e);
+            throw new ApiException(AppErrorCode.INTERNAL_DB_COMMUNICATION_ERROR);
+        }
+    }
+
+    private Optional<User> retrieveUserById(String id) throws ApiException {
+        try {
+            return userRepository.getById(id);
+        } catch (ExecutionException | InterruptedException e) {
+            log.error("Failed to read an users from DB by id: {}.", id, e);
+            throw new ApiException(AppErrorCode.INTERNAL_DB_COMMUNICATION_ERROR);
+        }
+    }
+
+
 }

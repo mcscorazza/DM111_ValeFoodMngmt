@@ -1,13 +1,11 @@
 package br.inatel.pos.dm11.vfu.persistance.user;
 
-import java.util.List;
+import br.inatel.pos.dm11.vfu.persistance.ValeFoodRepository;
+
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
 
 
-public interface UserRepository {
-    List<User> getAll();
-    Optional<User> getById(String id);
-    Optional<User> getByEmail(String email);
-    User save(User user);
-    void delete(String id);
+public interface UserRepository extends ValeFoodRepository<User> {
+    Optional<User> getByEmail(String email) throws ExecutionException, InterruptedException;
 }

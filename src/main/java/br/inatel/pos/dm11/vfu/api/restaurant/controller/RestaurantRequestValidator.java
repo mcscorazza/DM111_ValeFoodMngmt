@@ -1,5 +1,6 @@
 package br.inatel.pos.dm11.vfu.api.restaurant.controller;
 
+import br.inatel.pos.dm11.vfu.api.restaurant.RestaurantRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.validation.Errors;
 import org.springframework.validation.ValidationUtils;
@@ -7,9 +8,10 @@ import org.springframework.validation.Validator;
 
 @Component
 public class RestaurantRequestValidator implements Validator {
+
     @Override
     public boolean supports(Class<?> clazz) {
-        return false;
+        return RestaurantRequest.class.equals(clazz);
     }
 
     @Override
